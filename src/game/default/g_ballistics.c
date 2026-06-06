@@ -1372,9 +1372,9 @@ static void G_HookProjectile_Touch(g_entity_t *ent, g_entity_t *other, const cm_
 
   ent->s.sound = 0;
 
-  if (!G_IsSky(trace)) {
+  if (1) { /* RailWarz: hook attaches to sky too (sky added to the structural condition below) */
 
-    if (G_IsStructural(trace) || (G_IsMeat(other) && G_OnSameTeam(other->client, ent->owner->client))) {
+    if (G_IsStructural(trace) || G_IsSky(trace) || (G_IsMeat(other) && G_OnSameTeam(other->client, ent->owner->client))) {
 
       ent->velocity = Vec3_Zero();
       ent->avelocity = Vec3_Zero();
@@ -1415,18 +1415,7 @@ static void G_HookProjectile_Touch(g_entity_t *ent, g_entity_t *other, const cm_
       } else {*/
         ent->velocity = Vec3_Normalize(ent->velocity);
 
-        G_Damage(&(g_damage_t) {
-          .target = other,
-          .inflictor = ent,
-          .attacker = ent->owner,
-          .dir = ent->velocity,
-          .point = ent->s.origin,
-          .normal = Vec3_Zero(),
-          .damage = 5,
-          .knockback = 0,
-          .flags = 0,
-          .mod = MOD_HOOK
-        });
+        /* RailWarz: hook is a movement tool, not a weapon — deals no damage, just detaches on enemy hit */
 
         G_HookDetach(ent->owner->client);
 //      }
