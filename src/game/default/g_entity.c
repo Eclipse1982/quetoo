@@ -809,15 +809,18 @@ static void G_worldspawn(g_entity_t *ent) {
   gi.SetConfigString(CS_MAX_CLIENTS, va("%d", sv_max_clients->integer));
 
   if (map && map->gravity > 0) { // prefer maps.lst gravity
-    g_level.gravity = map->gravity;
+    g_pm_params.gravity = map->gravity;
   } else { // or fall back on worldspawn
     const cm_entity_t *gravity = gi.EntityValue(ent->def, "gravity");
     if (gravity->parsed & ENTITY_INTEGER) {
-      g_level.gravity = gravity->integer;
+      g_pm_params.gravity = gravity->integer;
     } else {
-      g_level.gravity = DEFAULT_GRAVITY;
+      g_pm_params.gravity = DEFAULT_GRAVITY;
     }
   }
+
+  // movement physics, server-controlled via the g_* cvars
+  G_UpdatePmParams();
 
   if (g_strcmp0(g_gameplay->string, "default")) { // perfer g_gameplay
     g_level.gameplay = G_GameplayByName(g_gameplay->string);

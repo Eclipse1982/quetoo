@@ -28,6 +28,10 @@
 extern g_level_t g_level;
 extern g_media_t g_media;
 
+extern pm_params_t g_pm_params;
+
+void G_UpdatePmParams(void);
+
 extern g_import_t gi;
 extern g_export_t ge;
 
@@ -150,6 +154,29 @@ extern cvar_t *g_frag_limit;
 extern cvar_t *g_friendly_fire;
 extern cvar_t *g_gameplay;
 extern cvar_t *g_gravity;
+extern cvar_t *g_water_gravity;
+extern cvar_t *g_ground_acceleration;
+extern cvar_t *g_ground_acceleration_slick;
+extern cvar_t *g_air_acceleration;
+extern cvar_t *g_water_acceleration;
+extern cvar_t *g_spectator_acceleration;
+extern cvar_t *g_ladder_acceleration;
+extern cvar_t *g_ground_friction;
+extern cvar_t *g_ground_friction_slick;
+extern cvar_t *g_air_friction;
+extern cvar_t *g_water_friction;
+extern cvar_t *g_spectator_friction;
+extern cvar_t *g_ladder_friction;
+extern cvar_t *g_ground_speed;
+extern cvar_t *g_air_speed;
+extern cvar_t *g_water_speed;
+extern cvar_t *g_ladder_speed;
+extern cvar_t *g_spectator_speed;
+extern cvar_t *g_stop_speed;
+extern cvar_t *g_jump_speed;
+extern cvar_t *g_duck_speed;
+extern cvar_t *g_duck_stand_speed;
+extern cvar_t *g_water_jump_speed;
 extern cvar_t *g_num_teams;
 extern cvar_t *g_motd;
 extern cvar_t *g_password;

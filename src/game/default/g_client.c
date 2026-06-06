@@ -1613,8 +1613,8 @@ static void G_ClientMove(g_client_t *cl, pm_cmd_t *cmd) {
     cl->ps.pm_state.type = PM_NORMAL;
   }
 
-  // copy the current gravity in
-  cl->ps.pm_state.gravity = g_level.gravity;
+  // copy the current movement parameters in (gravity, accel, friction, speeds)
+  cl->ps.pm_state.params = g_pm_params;
 
   pm_move_t pm;
   memset(&pm, 0, sizeof(pm));

@@ -29,7 +29,7 @@
  * @brief Game protocol version (protocol minor version). To be incremented
  * whenever the game protocol changes.
  */
-#define PROTOCOL_MINOR 1041
+#define PROTOCOL_MINOR 1043
 
 /**
  * @brief Game-specific server protocol commands. These are parsed directly by
@@ -833,11 +833,6 @@ typedef struct {
    * @brief Short server map name (e.g. "fractures").
    */
   char name[MAX_QPATH];
-
-  /**
-   * @brief Gravity override.
-   */
-  int16_t gravity;
 
   /**
    * @brief Active gameplay mode.
