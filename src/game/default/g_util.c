@@ -424,7 +424,7 @@ char *G_GameplayName(int32_t g) {
     case GAME_DEATHMATCH:
       return "DM";
     case GAME_INSTAGIB:
-      return "Instagib";
+      return "Railwarz"; /* RailWarz: cosmetic in-game label (server-browser gametype is engine-enum, not changeable here) */
     case GAME_ARENA:
       return "Arena";
     default:
