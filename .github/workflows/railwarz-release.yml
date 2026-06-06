@@ -1,13 +1,14 @@
 name: RailWarz Release
 
 # Builds the matched RailWarz engine + game modules from ONE commit and publishes
-# them as a versioned GitHub Release. The Linux archive bundles quetoo-dedicated,
-# the client `quetoo`, and lib/default/{game,cgame}.so — all from the same build,
-# so the engine<->game ABI lock can never mismatch and clients get matching
-# air-movement prediction.
+# them as a versioned GitHub Release, for BOTH platforms:
+#   - Linux:   quetoo-x86_64-pc-linux.tar.gz  (dedicated server + client + modules)
+#   - Windows: quetoo-x86_64-pc-windows.zip   (client quetoo.exe + game.dll + cgame.dll + deps)
+# Both carry the same air-movement (bg_pmove) parity, so Windows players predict
+# movement identically to the server (no rubber-banding) and get the PB HUD.
 #
-# Deps live entirely in linux/docker/Dockerfile.build (one tracked file), so this
-# workflow never duplicates the upstream dependency recipe.
+# Linux deps live entirely in linux/docker/Dockerfile.build (one tracked file).
+# The Windows job mirrors upstream build.yml's proven build-windows recipe.
 
 on:
   push:
@@ -23,22 +24,14 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # ---------------------------------------------------------------------------
+  build-linux:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Resolve release tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "name=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -97,23 +90,176 @@ jobs:
           fi
           echo "OK: byte-swap symbols resolved in game.so"
 
-      - name: Build manifest
+      - name: Upload Linux archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: quetoo-x86_64-pc-linux
+          path: linux/target/quetoo-x86_64-pc-linux.tar.gz
+
+  # ---------------------------------------------------------------------------
+  build-windows:
+    runs-on: windows-latest
+    env:
+      SOLUTION_FILE_PATH: Quetoo.vs15/quetoo_all.sln
+      BUILD_CONFIGURATION: Release
+    steps:
+      - name: Checkout Objectively
+        uses: actions/checkout@v4
+        with:
+          repository: jdolan/Objectively
+          path: Objectively
+
+      - name: Checkout ObjectivelyMVC
+        uses: actions/checkout@v4
+        with:
+          repository: jdolan/ObjectivelyMVC
+          path: ObjectivelyMVC
+
+      - name: Checkout Quetoo (this fork)
+        uses: actions/checkout@v4
+        with:
+          path: quetoo
+          fetch-depth: 0
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Cache vcpkg installed packages
+        id: cache-vcpkg
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-x64-windows-glib-2.88.0
+
+      - name: Install vcpkg packages
+        if: steps.cache-vcpkg.outputs.cache-hit != 'true'
+        run: vcpkg install glib:x64-windows
+
+      - name: Restore NuGet packages
+        working-directory: ${{ github.workspace }}/quetoo
+        run: nuget restore ${{ env.SOLUTION_FILE_PATH }}
+
+      - name: Build
+        working-directory: ${{ github.workspace }}/quetoo
+        shell: pwsh
+        run: |
+          $version = (git rev-list --count HEAD).Trim()
+          msbuild /m /p:Configuration=$env:BUILD_CONFIGURATION /p:DebugSymbols=true /p:DebugType=full "/p:ExtraPreprocessorDefinitions=VERSION=`"$version`"" $env:SOLUTION_FILE_PATH
+
+      - name: Install Quetoo
+        working-directory: ${{ github.workspace }}/quetoo
+        run: |
+          $staging = "windows\target\quetoo"
+
+          New-Item -ItemType Directory -Force -Path "$staging\bin" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$staging\lib\default\shaders" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$staging\lib\default\ui" | Out-Null
+
+          # Executables and their PDBs
+          Copy-Item "Quetoo.vs15\bin\x64Release\quetoo.exe" "$staging\bin\"
+          Copy-Item "Quetoo.vs15\bin\x64Release\quetoo.pdb" "$staging\bin\"
+          Copy-Item "Quetoo.vs15\bin\x64Release\quemap.exe" "$staging\bin\"
+          Copy-Item "Quetoo.vs15\bin\x64Release\quemap.pdb" "$staging\bin\"
+          Copy-Item "Quetoo.vs15\bin\x64Release\quetoo-dedicated.exe" "$staging\bin\"
+          Copy-Item "Quetoo.vs15\bin\x64Release\quetoo-dedicated.pdb" "$staging\bin\"
+
+          # Game modules and their PDBs
+          Copy-Item "Quetoo.vs15\bin\x64Release\cgame.dll" "$staging\lib\default\"
+          Copy-Item "Quetoo.vs15\bin\x64Release\cgame.pdb" "$staging\lib\default\"
+          Copy-Item "Quetoo.vs15\bin\x64Release\game.dll" "$staging\lib\default\"
+          Copy-Item "Quetoo.vs15\bin\x64Release\game.pdb" "$staging\lib\default\"
+
+          # Objectively and ObjectivelyMVC and their PDBs
+          Copy-Item "..\Objectively\Objectively.vs15\bin\x64Release\Objectively.dll" "$staging\bin\"
+          Copy-Item "..\Objectively\Objectively.vs15\bin\x64Release\Objectively.pdb" "$staging\bin\"
+          Copy-Item "..\ObjectivelyMVC\ObjectivelyMVC.vs15\bin\x64Release\ObjectivelyMVC.dll" "$staging\bin\"
+          Copy-Item "..\ObjectivelyMVC\ObjectivelyMVC.vs15\bin\x64Release\ObjectivelyMVC.pdb" "$staging\bin\"
+
+          # Dependency DLLs
+          Copy-Item "..\Objectively\Objectively.vs15\libs\dlfcn\x64\dlfcn.dll" "$staging\bin\"
+          Copy-Item "Quetoo.vs15\libs\openal\bin\x64\OpenAL32.dll" "$staging\bin\"
+
+          # GLib and its dependencies from vcpkg
+          $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
+          Copy-Item "$vcpkgBin\glib-2.0-0.dll" "$staging\bin\"
+          Copy-Item "$vcpkgBin\intl-8.dll" "$staging\bin\"
+          Copy-Item "$vcpkgBin\iconv-2.dll" "$staging\bin\"
+          Copy-Item "$vcpkgBin\pcre2-8.dll" "$staging\bin\"
+
+          # SDL3 DLLs
+          Get-ChildItem "..\ObjectivelyMVC\ObjectivelyMVC.vs15\libs\sdl\lib\x64\*.dll" -ErrorAction SilentlyContinue |
+            Copy-Item -Destination "$staging\bin\"
+
+          # Shaders
+          Copy-Item -Path "src\client\renderer\shaders\*" -Destination "$staging\lib\default\shaders\" -Recurse
+
+          # UI files (CSS, JSON, PNG and WAV assets, preserving directory structure)
+          foreach ($uiSource in @("src\cgame\default\ui", "src\client\ui")) {
+            Get-ChildItem -Path $uiSource -Include "*.css","*.json","*.png","*.wav" -Recurse | ForEach-Object {
+              $relativePath = $_.FullName.Substring((Resolve-Path $uiSource).Path.Length).TrimStart('\')
+              $destPath = Join-Path "$staging\lib\default\ui" $relativePath
+              $destDir = Split-Path $destPath -Parent
+              if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
+              Copy-Item $_.FullName -Destination $destPath
+            }
+          }
+
+      - name: Create archive
+        working-directory: ${{ github.workspace }}/quetoo
+        run: |
+          Compress-Archive -Path windows\target\quetoo\* -DestinationPath quetoo-x86_64-pc-windows.zip
+
+      - name: Upload Windows archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: quetoo-x86_64-pc-windows
+          path: quetoo/quetoo-x86_64-pc-windows.zip
+
+  # ---------------------------------------------------------------------------
+  release:
+    needs: [ build-linux, build-windows ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Stage assets + build manifest
         run: |
           set -euo pipefail
-          ARCHIVE=linux/target/quetoo-x86_64-pc-linux.tar.gz
+          mkdir -p out
+          cp dist/quetoo-x86_64-pc-linux/quetoo-x86_64-pc-linux.tar.gz out/
+          cp dist/quetoo-x86_64-pc-windows/quetoo-x86_64-pc-windows.zip out/
           GAV=$(grep -E '#define[[:space:]]+GAME_API_VERSION' src/game/game.h | grep -oE '[0-9]+')
-          cat > manifest.json <<EOF
+          cat > out/manifest.json <<EOF
           {
             "tag": "${{ steps.tag.outputs.name }}",
             "commit": "$(git rev-parse HEAD)",
             "version_count": "$(git rev-list --count HEAD)",
             "game_api_version": ${GAV},
             "build_date": "$(date -u +%FT%TZ)",
-            "archive": "quetoo-x86_64-pc-linux.tar.gz",
-            "archive_md5": "$(md5sum "$ARCHIVE" | cut -d' ' -f1)"
+            "linux_archive": "quetoo-x86_64-pc-linux.tar.gz",
+            "linux_md5": "$(md5sum out/quetoo-x86_64-pc-linux.tar.gz | cut -d' ' -f1)",
+            "windows_archive": "quetoo-x86_64-pc-windows.zip",
+            "windows_md5": "$(md5sum out/quetoo-x86_64-pc-windows.zip | cut -d' ' -f1)"
           }
           EOF
-          cat manifest.json
+          cat out/manifest.json
 
       - name: Publish release
         env:
@@ -122,16 +268,25 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.tag.outputs.name }}"
-          NOTES="Matched engine + game modules built from one commit (Q2/TMG FFA RailWarz parity).
+          NOTES="Matched engine + game/cgame modules built from one commit (Q2/TMG FFA RailWarz parity).
 
-          The Linux archive bundles quetoo-dedicated, the client quetoo, and lib/default/{game,cgame}.so
-          from the same build — deploy the pair together. See manifest.json for the commit and GAME_API_VERSION."
-          # On a tag push the tag already exists; on workflow_dispatch create it at the built commit.
+          | Platform | Asset | Contents |
+          |---|---|---|
+          | Linux | quetoo-x86_64-pc-linux.tar.gz | quetoo-dedicated + client + game.so/cgame.so |
+          | Windows | quetoo-x86_64-pc-windows.zip | client quetoo.exe + game.dll + cgame.dll + deps |
+
+          Both share the same air-movement (bg_pmove) parity, so Windows clients predict
+          movement identically to the server. See manifest.json for commit + GAME_API_VERSION."
           TARGET_ARG=()
           if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
             TARGET_ARG=(--target "$(git rev-parse HEAD)")
           fi
-          gh release create "$TAG" "${TARGET_ARG[@]}" \
-            --title "Quetoo RailWarz $TAG" \
-            --notes "$NOTES" \
-            linux/target/quetoo-x86_64-pc-linux.tar.gz manifest.json
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "Quetoo RailWarz $TAG" --notes "$NOTES"
+            gh release upload "$TAG" --clobber out/quetoo-x86_64-pc-linux.tar.gz out/quetoo-x86_64-pc-windows.zip out/manifest.json
+          else
+            gh release create "$TAG" "${TARGET_ARG[@]}" \
+              --title "Quetoo RailWarz $TAG" \
+              --notes "$NOTES" \
+              out/quetoo-x86_64-pc-linux.tar.gz out/quetoo-x86_64-pc-windows.zip out/manifest.json
+          fi
