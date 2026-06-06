@@ -1763,20 +1763,8 @@ static void G_ClientMove(g_client_t *cl, pm_cmd_t *cmd) {
           }
 
           cl->pain_time = g_level.time; // suppress pain sound
-          
-          // TODO: get normal from what we've landed on
-          G_Damage(&(g_damage_t) {
-            .target = ent,
-            .inflictor = NULL,
-            .attacker = NULL,
-            .dir = Vec3_Up(),
-            .point = ent->s.origin,
-            .normal = Vec3_Zero(),
-            .damage = damage,
-            .knockback = 0,
-            .flags = DMG_NO_ARMOR,
-            .mod = MOD_FALLING
-          });
+
+          (void) damage; /* RailWarz: fall damage disabled (Q2 dmflags 8 parity) — keep fall event/sound, no G_Damage */
         }
 
         ent->s.event = event;
