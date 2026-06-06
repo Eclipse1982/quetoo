@@ -11,11 +11,12 @@ name: RailWarz Release
 
 on:
   push:
-    tags: [ "v*" ]
+    # Namespaced so we do NOT trigger upstream's release.yml/build.yml (which match "v*").
+    tags: [ "railwarz-v*" ]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to create (e.g. v1)"
+        description: "Release tag to create (e.g. railwarz-v1)"
         required: true
 
 permissions:
