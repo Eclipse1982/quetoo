@@ -38,6 +38,10 @@ jobs:
 
       - name: Build deps image (GHA layer cache)
         uses: docker/build-push-action@v6
+        env:
+          # Don't upload the buildx build-record artifact (it's a .dockerbuild zip that
+          # breaks "download all artifacts" in the release job).
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
         with:
           context: .
           file: linux/docker/Dockerfile.build
@@ -234,10 +238,12 @@ jobs:
             echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Download artifacts
+      - name: Download platform artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
+          # Only the two platform artifacts — never a stray buildx .dockerbuild record.
+          pattern: quetoo-x86_64-pc-*
 
       - name: Stage assets + build manifest
         run: |
