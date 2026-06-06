@@ -27,7 +27,7 @@
 /**
  * @brief Acceleration constants.
  */
-#define PM_ACCEL_AIR            2.f
+#define PM_ACCEL_AIR            10.f /* RailWarz: Q2 sv_accelerate; per-second accel = cvar regardless of tick rate */
 #define PM_ACCEL_AIR_MOD_DUCKED 0.125f
 #define PM_ACCEL_GROUND         10.f
 #define PM_ACCEL_GROUND_SLICK   4.375f
@@ -43,7 +43,7 @@
 /**
  * @brief Friction constants.
  */
-#define PM_FRICT_AIR          0.125f
+#define PM_FRICT_AIR          0.f /* RailWarz: Q2 sv_airaccelerate 0 has no air friction; restores strafe gain */
 #define PM_FRICT_GROUND       6.f
 #define PM_FRICT_GROUND_SLICK 2.f
 #define PM_FRICT_LADDER       5.f
@@ -64,7 +64,7 @@
 /**
  * @brief Speed constants; intended velocities are clipped to these.
  */
-#define PM_SPEED_AIR         350.f
+#define PM_SPEED_AIR         300.f /* RailWarz: Q2 air wishspeed cap */
 #define PM_SPEED_CURRENT     100.f
 #define PM_SPEED_DUCK_STAND  200.f
 #define PM_SPEED_DUCKED      140.f
@@ -96,7 +96,7 @@
 /**
  * @brief The vertical distance afforded in step climbing.
  */
-#define PM_STEP_HEIGHT 16.f
+#define PM_STEP_HEIGHT 18.f /* RailWarz: Q2 step height */
 
 /**
  * @brief The smallest step that will be interpolated by the client.
